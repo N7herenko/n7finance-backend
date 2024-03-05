@@ -122,8 +122,16 @@ export const fetchByTicker = async (req, res) => {
 
     const requestData = {
       codes: [
-        `_${ticker.toUpperCase()}`,
         ticker.toUpperCase(),
+        `_${ticker.toUpperCase()}`,
+        `__${ticker.toUpperCase()}`,
+        `___${ticker.toUpperCase()}`,
+        `____${ticker.toUpperCase()}`,
+        `_____${ticker.toUpperCase()}`,
+        `______${ticker.toUpperCase()}`,
+        `_______${ticker.toUpperCase()}`,
+        `________${ticker.toUpperCase()}`,
+        `_________${ticker.toUpperCase()}`,
         `__________${ticker.toUpperCase()}`,
       ],
       currency: "USD",
