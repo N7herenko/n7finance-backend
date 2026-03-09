@@ -26,28 +26,33 @@ export const fetch = async (req, res) => {
       return acc;
     }, {});
 
-    // Fetch data from the API
-    const requestData = {
-      codes: assets.map((asset) => asset.ticker),
-      currency: "USD",
-      sort: "rank",
-      order: "ascending",
-      offset: 0,
-      limit: 0,
-      meta: true,
-    };
+    // Fetch data from the API (with fallback if API fails)
+    let apiDataMap = new Map();
+    try {
+      const requestData = {
+        codes: assets.map((asset) => asset.ticker),
+        currency: "USD",
+        sort: "rank",
+        order: "ascending",
+        offset: 0,
+        limit: 0,
+        meta: true,
+      };
 
-    const url = `${process.env.API_URL_CRYPTO}/coins/map`;
+      const url = `${process.env.API_URL_CRYPTO}/coins/map`;
 
-    const response = await axios.post(url, requestData, {
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": process.env.API_KEY_CRYPTO,
-      },
-    });
+      const response = await axios.post(url, requestData, {
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": process.env.API_KEY_CRYPTO,
+        },
+      });
 
-    // Create a map for the API data based on the 'symbol' field
-    const apiDataMap = new Map(response.data.map((item) => [item.code, item]));
+      // Create a map for the API data based on the 'symbol' field
+      apiDataMap = new Map(response.data.map((item) => [item.code, item]));
+    } catch (apiError) {
+      console.warn("⚠️ Crypto API Error:", apiError.message);
+    }
 
     // Merge and transform the data
     const mergedData = assets.map((asset) => {
@@ -106,6 +111,7 @@ export const fetch = async (req, res) => {
       data: mergedData,
     });
   } catch (error) {
+    console.error("FETCH ASSETS ERROR:", error.message);
     res.status(500).json({
       error: {
         success: false,
@@ -185,7 +191,7 @@ export const fetchByTicker = async (req, res) => {
       rate: asset.rate,
       volume: asset.volume,
       cap: asset.cap,
-      liquidity: asset.liquidity, // Assuming liquidity is available in your data
+      liquidity: asset.liquidity,
       delta: asset.delta,
     }));
 
@@ -195,6 +201,7 @@ export const fetchByTicker = async (req, res) => {
       data: transformedData,
     });
   } catch (error) {
+    console.error("FETCH BY TICKER ERROR:", error.message);
     res.status(500).json({
       error: {
         success: false,
@@ -249,27 +256,33 @@ export const create = async (req, res) => {
         0
       );
 
-    // Fetch data from the API for the new asset
-    const requestData = {
-      codes: [ticker],
-      currency: "USD",
-      sort: "rank",
-      order: "ascending",
-      offset: 0,
-      limit: 0,
-      meta: true,
-    };
+    // Fetch data from the API for the new asset (with fallback if API fails)
+    let apiData = {};
+    try {
+      const requestData = {
+        codes: [ticker],
+        currency: "USD",
+        sort: "rank",
+        order: "ascending",
+        offset: 0,
+        limit: 0,
+        meta: true,
+      };
 
-    const url = `${process.env.API_URL_CRYPTO}/coins/map`;
+      const url = `${process.env.API_URL_CRYPTO}/coins/map`;
 
-    const response = await axios.post(url, requestData, {
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": process.env.API_KEY_CRYPTO,
-      },
-    });
+      const response = await axios.post(url, requestData, {
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": process.env.API_KEY_CRYPTO,
+        },
+      });
 
-    const apiData = response.data[0];
+      apiData = response.data[0] || {};
+    } catch (apiError) {
+      console.warn("⚠️ Crypto API Error on create:", apiError.message);
+    }
+
     const { png64, png32, webp32, webp64, color, ...restApiData } =
       apiData || {};
 
@@ -288,6 +301,7 @@ export const create = async (req, res) => {
       message: "Asset Successfully Added",
     });
   } catch (error) {
+    console.error("CREATE ASSET ERROR:", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -305,23 +319,30 @@ export const update = async (req, res) => {
     const updatedAsset = await Asset.findByIdAndUpdate(id, req.body, {
       new: true,
     });
-    // Fetch data from the API for the new asset
-    const requestData = {
-      currency: "USD",
-      code: updatedAsset.ticker,
-      meta: true,
-    };
 
-    const url = `${process.env.API_URL_CRYPTO}/coins/single`;
+    // Fetch data from the API for the new asset (with fallback if API fails)
+    let apiData = {};
+    try {
+      const requestData = {
+        currency: "USD",
+        code: updatedAsset.ticker,
+        meta: true,
+      };
 
-    const response = await axios.post(url, requestData, {
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": process.env.API_KEY_CRYPTO,
-      },
-    });
+      const url = `${process.env.API_URL_CRYPTO}/coins/single`;
 
-    const apiData = response.data;
+      const response = await axios.post(url, requestData, {
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": process.env.API_KEY_CRYPTO,
+        },
+      });
+
+      apiData = response.data || {};
+    } catch (apiError) {
+      console.warn("⚠️ Crypto API Error on update:", apiError.message);
+    }
+
     const { png64, png32, webp32, webp64, color, ...restApiData } =
       apiData || {};
 
@@ -336,6 +357,7 @@ export const update = async (req, res) => {
       message: "Asset Successfully Updated",
     });
   } catch (error) {
+    console.error("UPDATE ASSET ERROR:", error.message);
     res.status(500).json({
       error: {
         success: false,
@@ -371,6 +393,7 @@ export const deleteAsset = async (req, res) => {
       deletedTransactions: transactionsToDelete,
     });
   } catch (error) {
+    console.error("DELETE ASSET ERROR:", error.message);
     res.status(500).json({
       error: {
         success: false,
