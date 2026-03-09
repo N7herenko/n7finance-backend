@@ -26,17 +26,24 @@ export const fetch = async (req, res) => {
 			return acc
 		}, {})
 
-		// Fetch data from the API (with fallback if API fails)
-		let apiData = []
+		// Fetch data from the API (parallel requests per ticker, with fallback if API fails)
+		let apiDataMap = {}
 		try {
-			const tickers = assets.map((asset) => asset.ticker.toUpperCase()).join(',')
-			const url = `${process.env.API_URL_STOCK}/profile/${tickers}?apikey=${process.env.API_KEY_STOCK}`
-			const response = await axios.get(url, {
-				headers: {
-					'content-type': 'application/json',
-				},
+			const results = await Promise.all(
+				assets.map(async (asset) => {
+					const url = `${process.env.API_URL_STOCK}/profile?symbol=${asset.ticker.toUpperCase()}&apikey=${process.env.API_KEY_STOCK}`
+					const response = await axios.get(url, {
+						headers: {
+							'content-type': 'application/json',
+							'apikey': process.env.API_KEY_STOCK,
+						},
+					})
+					return response.data?.[0] || null
+				})
+			)
+			results.forEach((item) => {
+				if (item?.symbol) apiDataMap[item.symbol] = item
 			})
-			apiData = response.data || []
 		} catch (apiError) {
 			console.warn('⚠️ Stock API Error:', apiError.message)
 		}
@@ -44,7 +51,7 @@ export const fetch = async (req, res) => {
 		// Merge and transform the data
 		const mergedData = assets.map((asset) => {
 			const { symbol, image, ...restApiData } =
-				apiData.find((item) => item.symbol === asset.ticker) || {}
+				apiDataMap[asset.ticker] || {}
 
 			// Get transactions for the current asset
 			const assetTransactions = transactionsByTicker[asset.ticker] || []
@@ -116,11 +123,12 @@ export const fetchByTicker = async (req, res) => {
 
 		const url = `${
 			process.env.API_URL_STOCK
-		}/profile/${ticker.toUpperCase()}?apikey=${process.env.API_KEY_STOCK}`
+		}/profile?symbol=${ticker.toUpperCase()}&apikey=${process.env.API_KEY_STOCK}`
 
 		const response = await axios.get(url, {
 			headers: {
 				'content-type': 'application/json',
+				'apikey': process.env.API_KEY_STOCK,
 			},
 		})
 
@@ -195,11 +203,12 @@ export const create = async (req, res) => {
 		try {
 			const url = `${
 				process.env.API_URL_STOCK
-			}/profile/${ticker.toUpperCase()}?apikey=${process.env.API_KEY_STOCK}`
+			}/profile?symbol=${ticker.toUpperCase()}&apikey=${process.env.API_KEY_STOCK}`
 
 			const response = await axios.get(url, {
 				headers: {
 					'content-type': 'application/json',
+					'apikey': process.env.API_KEY_STOCK,
 				},
 			})
 			apiData = response.data[0] || {}
@@ -249,13 +258,14 @@ export const update = async (req, res) => {
 			// Fetch data from the API for the new asset
 			const url = `${
 				process.env.API_URL_STOCK
-			}/profile/${updatedAsset.ticker.toUpperCase()}?apikey=${
+			}/profile?symbol=${updatedAsset.ticker.toUpperCase()}&apikey=${
 				process.env.API_KEY_STOCK
 			}`
 
 			const response = await axios.get(url, {
 				headers: {
 					'content-type': 'application/json',
+					'apikey': process.env.API_KEY_STOCK,
 				},
 			})
 			apiData = response.data[0] || {}
